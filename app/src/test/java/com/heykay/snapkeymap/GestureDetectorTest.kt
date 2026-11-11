@@ -208,6 +208,109 @@ class GestureDetectorTest {
     }
 
     @Test
+    fun secondDownBeforeTheDeadlineCancelsThePendingSingle() {
+        val h = Harness()
+        h.tap(0) // Release at 50; the single is due at 400.
+        h.advanceTo(399)
+        assertTrue(h.gestures.isEmpty())
+        h.detector.down()
+        assertEquals(listOf(Gesture.DOUBLE), h.gestures)
+        h.detector.up()
+        h.advanceTo(2000)
+        assertEquals(listOf(Gesture.DOUBLE), h.gestures)
+    }
+
+    @Test
+    fun secondDownAfterTheTimeoutCallbackStartsANewGesture() {
+        val h = Harness()
+        h.tap(0)
+        // Model the main-thread timeout running before the down at the same timestamp.
+        h.advanceTo(400)
+        assertEquals(listOf(Gesture.SINGLE), h.gestures)
+        h.detector.down()
+        h.advanceTo(450)
+        h.detector.up()
+        h.advanceTo(799)
+        assertEquals(listOf(Gesture.SINGLE), h.gestures)
+        h.advanceTo(800)
+        assertEquals(listOf(Gesture.SINGLE, Gesture.SINGLE), h.gestures)
+    }
+
+    @Test
+    fun releaseBeforeHoldDeadlineCancelsTheHold() {
+        val h = Harness()
+        h.detector.down()
+        h.advanceTo(649)
+        h.detector.up()
+        h.advanceTo(999)
+        assertTrue(h.gestures.isEmpty())
+        h.advanceTo(1000)
+        assertEquals(listOf(Gesture.SINGLE), h.gestures)
+        h.advanceTo(2000)
+        assertEquals(listOf(Gesture.SINGLE), h.gestures)
+    }
+
+    @Test
+    fun releaseAfterHoldCallbackDoesNotAlsoScheduleASingle() {
+        val h = Harness()
+        h.detector.down()
+        h.advanceTo(650)
+        assertEquals(listOf(Gesture.LONG), h.gestures)
+        h.detector.up()
+        h.detector.up()
+        h.advanceTo(2000)
+        assertEquals(listOf(Gesture.LONG), h.gestures)
+    }
+
+    @Test
+    fun duplicateReleaseDoesNotPostponeTheSingleDeadline() {
+        val h = Harness()
+        h.tap(0)
+        h.advanceTo(200)
+        h.detector.up()
+        h.advanceTo(399)
+        assertTrue(h.gestures.isEmpty())
+        h.advanceTo(400)
+        assertEquals(listOf(Gesture.SINGLE), h.gestures)
+        h.advanceTo(2000)
+        assertEquals(listOf(Gesture.SINGLE), h.gestures)
+    }
+
+    @Test
+    fun resetImmediatelyBeforeHoldDeadlinePreventsTheOldAction() {
+        val h = Harness()
+        h.detector.down()
+        h.advanceTo(649)
+        h.detector.reset()
+        h.advanceTo(650)
+        h.detector.up()
+        h.advanceTo(2000)
+        assertTrue(h.gestures.isEmpty())
+        h.tap(3000)
+        h.advanceTo(3400)
+        assertEquals(listOf(Gesture.SINGLE), h.gestures)
+    }
+
+    @Test
+    fun immediateSingleIgnoresDuplicateEdgesAndRecoversForTheNextPress() {
+        val h = Harness()
+        h.detector.wantsDouble = false
+        h.detector.wantsLong = false
+        h.detector.up()
+        assertTrue(h.gestures.isEmpty())
+        h.detector.down()
+        h.detector.down()
+        h.advanceTo(2000)
+        assertEquals(listOf(Gesture.SINGLE), h.gestures)
+        h.detector.up()
+        h.detector.up()
+        h.detector.down()
+        h.detector.up()
+        h.advanceTo(4000)
+        assertEquals(listOf(Gesture.SINGLE, Gesture.SINGLE), h.gestures)
+    }
+
+    @Test
     fun handoffCanDistinguishAnAlreadyDispatchedPressFromAPendingOne() {
         val h = Harness()
         h.detector.wantsDouble = false
