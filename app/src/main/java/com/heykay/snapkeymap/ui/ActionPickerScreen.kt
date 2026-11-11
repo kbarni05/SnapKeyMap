@@ -213,6 +213,9 @@ fun ActionPickerScreen(gesture: Gesture, onDone: () -> Unit) {
                         PickRow(
                             icon = { VectorIcon(actionIcon(action)) },
                             title = device.label,
+                            subtitle = if (device == DeviceAction.ACCESSIBILITY_BUTTON) {
+                                "Runs the shortcut assigned to Android’s accessibility button (Android 12+)"
+                            } else null,
                             selected = current == action,
                         ) { choose(action) }
                     }

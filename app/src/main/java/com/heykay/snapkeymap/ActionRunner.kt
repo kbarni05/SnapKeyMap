@@ -86,6 +86,7 @@ object ActionRunner {
             DeviceAction.FLASHLIGHT -> toggleTorch(context, alwaysConfirm)
             DeviceAction.DO_NOT_DISTURB -> toggleDoNotDisturb(context, alwaysConfirm)
             DeviceAction.SCREENSHOT -> global(context, AccessibilityService.GLOBAL_ACTION_TAKE_SCREENSHOT)
+            DeviceAction.ACCESSIBILITY_BUTTON -> accessibilityButton(context)
             DeviceAction.CIRCLE_TO_SEARCH -> if (!CircleToSearch.start()) {
                 toast(context, "Circle to Search isn't available. Set Google as your digital assistant app.")
             }
@@ -132,6 +133,19 @@ object ActionRunner {
 
     private fun start(context: Context, intent: Intent) {
         context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+
+    private fun accessibilityButton(context: Context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            toast(context, "The accessibility button action needs Android 12 or later")
+            return
+        }
+        val service = SnapAccessibilityService.instance
+        if (service == null) {
+            toast(context, "Turn on the SnapKey Map service first")
+        } else if (!performAccessibilityButton(service.systemActions.map { it.id }, service::performGlobalAction)) {
+            toast(context, "Accessibility button unavailable. Assign a button shortcut in Android Accessibility settings.")
+        }
     }
 
     private fun global(context: Context, id: Int) {
