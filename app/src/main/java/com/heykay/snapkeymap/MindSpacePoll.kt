@@ -46,8 +46,9 @@ class MindSpacePoll(
         if (token != generation) return
         val outcome = runCatching { click() }.getOrElse { MindSpaceClick.FAILED }
         if (token != generation) return
-        if (outcome != MindSpaceClick.NOT_READY || now() >= deadline) {
-            if (outcome != MindSpaceClick.CLICKED) onUnavailable()
+        if (outcome == MindSpaceClick.CLICKED) return
+        if (now() >= deadline) {
+            onUnavailable()
             return
         }
         schedule(intervalMs) { attempt(token, onUnavailable) }
