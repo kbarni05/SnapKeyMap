@@ -22,7 +22,7 @@ class MindSpacePollTest {
     )
 
     private fun queue(vararg queued: MindSpaceClick) {
-        outcomes += queued
+        outcomes.addAll(queued)
     }
 
     @Test

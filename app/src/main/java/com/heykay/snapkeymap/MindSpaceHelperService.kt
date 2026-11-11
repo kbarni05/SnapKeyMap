@@ -14,7 +14,14 @@ import android.view.accessibility.AccessibilityNodeInfo
 
 class MindSpaceHelperService : AccessibilityService() {
     private val handler = Handler(Looper.getMainLooper())
-    private var mindSpacePoll: Runnable? = null
+
+    // The handler carries only this poll, so clearing it cancels nothing else.
+    private val poll = MindSpacePoll(
+        schedule = { delayMs, task -> handler.postDelayed({ task() }, delayMs) },
+        cancelScheduled = { handler.removeCallbacksAndMessages(null) },
+        now = SystemClock::uptimeMillis,
+        click = ::clickSnapToMindSpace,
+    )
 
     override fun onServiceConnected() {
         instance = this
@@ -25,37 +32,25 @@ class MindSpaceHelperService : AccessibilityService() {
     override fun onInterrupt() = Unit
 
     fun sendScreenshotToMindSpace(onUnavailable: () -> Unit) {
-        mindSpacePoll?.let { handler.removeCallbacks(it) }
-        mindSpacePoll = null
+        poll.cancel()
         if (!performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT)) {
             onUnavailable()
             return
         }
-        val deadline = SystemClock.uptimeMillis() + 3000L
-        val poll = object : Runnable {
-            override fun run() {
-                if (mindSpacePoll !== this) return
-                val clicked = runCatching {
-                    for (window in windows) {
-                        val root = window.root ?: continue
-                        if (root.packageName?.toString() != "com.oplus.screenshot") continue
-                        val button = root.findAccessibilityNodeInfosByViewId(
-                            "com.oplus.screenshot:id/collection_icon_container",
-                        ).firstOrNull { it.isEnabled } ?: continue
-                        return@runCatching button.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                    }
-                    null
-                }.getOrElse { false }
-                if (clicked != null || SystemClock.uptimeMillis() >= deadline) {
-                    mindSpacePoll = null
-                    if (clicked != true) onUnavailable()
-                } else {
-                    handler.postDelayed(this, 150L)
-                }
-            }
+        poll.start(onUnavailable)
+    }
+
+    private fun clickSnapToMindSpace(): MindSpaceClick {
+        for (window in windows) {
+            val root = window.root ?: continue
+            if (root.packageName?.toString() != "com.oplus.screenshot") continue
+            val button = root.findAccessibilityNodeInfosByViewId(
+                "com.oplus.screenshot:id/collection_icon_container",
+            ).firstOrNull { it.isEnabled } ?: continue
+            val clicked = button.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            return if (clicked) MindSpaceClick.CLICKED else MindSpaceClick.FAILED
         }
-        mindSpacePoll = poll
-        handler.postDelayed(poll, 150L)
+        return MindSpaceClick.NOT_READY
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
@@ -69,8 +64,7 @@ class MindSpaceHelperService : AccessibilityService() {
     }
 
     private fun clear() {
-        mindSpacePoll?.let { handler.removeCallbacks(it) }
-        mindSpacePoll = null
+        poll.cancel()
         instance = null
     }
 
